@@ -14,6 +14,7 @@ import com.capstone.userauthentication.repositories.UserRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -21,21 +22,13 @@ import javax.crypto.SecretKey;
 import java.util.*;
 
 @Service
+@RequiredArgsConstructor
 public class AuthenticationService implements IAuthenticationService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final BCryptPasswordEncoder passwordEncoder;
     private final SecretKey secretKey;
     private final SessionRepository sessionRepository;
-
-    public AuthenticationService(UserRepository userRepository, RoleRepository roleRepository, BCryptPasswordEncoder passwordEncoder, SecretKey secretKey, SessionRepository sessionRepository) {
-        this.userRepository = userRepository;
-        this.roleRepository = roleRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.secretKey = secretKey;
-        this.sessionRepository = sessionRepository;
-    }
-
 
     @Override
     public User signup(String name, String email, String password) {

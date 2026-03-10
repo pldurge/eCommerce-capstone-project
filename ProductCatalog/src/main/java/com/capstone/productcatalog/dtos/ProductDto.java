@@ -7,17 +7,20 @@ import com.capstone.productcatalog.models.Product;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+import java.util.UUID;
+
 @Getter
 @Setter
 public class ProductDto {
-    private Long id;
+    private UUID id;
     private String name;
     private String description;
     private CategoryDto category;
-    private Double price;
+    private BigDecimal price;
     private String imageUrl;
 
-    public Product convertToProduct(){
+    public Product toProduct(){
         Product product = new Product();
         product.setId(this.getId());
         product.setName(this.getName());

@@ -1,43 +1,40 @@
 package com.capstone.productcatalog.models;
 
-
 import com.capstone.productcatalog.dtos.CategoryDto;
-import com.capstone.productcatalog.dtos.FakeStoreProductDto;
 import com.capstone.productcatalog.dtos.ProductDto;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Entity;
+import jakarta.persistence.*;
 
-import jakarta.persistence.ManyToOne;
+import lombok.*;
 
-import lombok.Getter;
-import lombok.Setter;
+import java.math.BigDecimal;
 
+@Entity
+@Table(name = "products")
 @Getter
 @Setter
-@Entity
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
 public class Product extends BaseModel{
+    @Column(nullable = false)
     private String name;
+
+    @Column(columnDefinition = "TEXT")
     private String description;
-    private double price;
+
+    @Column(nullable = false, precision = 10, scale = 2)
+    private BigDecimal price;
+
+    @Column(nullable = false)
+    private Integer stockQuantity;
+
     private String imageUrl;
 
-    @ManyToOne(cascade = CascadeType.ALL)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
     private Category category;
 
-    public FakeStoreProductDto convertToFakeStoreProduct(){
-        FakeStoreProductDto fakeStoreProductDto = new FakeStoreProductDto();
-        fakeStoreProductDto.setId(this.getId());
-        fakeStoreProductDto.setTitle(this.getName());
-        fakeStoreProductDto.setPrice(this.getPrice());
-        fakeStoreProductDto.setDescription(this.getDescription());
-        fakeStoreProductDto.setImage(this.getImageUrl());
-        if(this.getCategory() != null) {
-            fakeStoreProductDto.setCategory(this.getCategory().getName());
-        }
-        return fakeStoreProductDto;
-    }
-
-    public ProductDto convertToProductDto(){
+    public ProductDto toDto(){
         ProductDto productDto = new ProductDto();
         productDto.setId(this.getId());
         productDto.setName(this.getName());
@@ -52,6 +49,5 @@ public class Product extends BaseModel{
             productDto.setCategory(categoryDto);
         }
         return productDto;
-
     }
 }

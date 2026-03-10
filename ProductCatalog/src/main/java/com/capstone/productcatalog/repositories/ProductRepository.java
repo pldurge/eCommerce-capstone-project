@@ -1,29 +1,23 @@
 package com.capstone.productcatalog.repositories;
 
 import com.capstone.productcatalog.models.Product;
+import com.capstone.productcatalog.models.State;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
-public interface ProductRepository extends JpaRepository<Product, Long> {
-
-    Optional<Product> findById(Long id);
-
-    List<Product> findAll();
-
-    Product save(Product product);
-
-
-    List<Product> findByPriceBetween(Double low, Double high);
-
-    List<Product> findAllByOrderByPrice();
-
-    @Query("SELECT p.description FROM Product p WHERE p.id = :id") //HQL
-    String findDescriptionWhereIdIs(@Param("id") Long id);
+public interface ProductRepository extends JpaRepository<Product, UUID> {
+    Page<Product> findByCategoryId(UUID categoryId, Pageable pageable);
+    Page<Product> findByState(State state, Pageable pageable);
+    Page<Product> findByPriceBetween(BigDecimal lowPrice, BigDecimal highPrice, Pageable pageable);
 
 }

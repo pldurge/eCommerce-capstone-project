@@ -1,94 +1,123 @@
 package com.capstone.productcatalog.services;
 
+import com.capstone.productcatalog.dtos.CategoryDto;
+import com.capstone.productcatalog.dtos.ProductDto;
+import com.capstone.productcatalog.exceptions.ProductNotFoundException;
+import com.capstone.productcatalog.models.Category;
 import com.capstone.productcatalog.models.Product;
 import com.capstone.productcatalog.models.State;
+import com.capstone.productcatalog.repositories.CategoryRepository;
 import com.capstone.productcatalog.repositories.ProductRepository;
-import org.springframework.context.annotation.Primary;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Optional;
 
-@Service("storageProductService")
-@Primary
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
 public class StorageProductService implements IProductService{
 
     private final ProductRepository productRepository;
+    private final CategoryRepository categoryRepository;
 
-    public StorageProductService(ProductRepository productRepository){
-        this.productRepository = productRepository;
+    @Override
+    public Page<ProductDto> getAllProducts(Pageable pageable) {
+        Page<Product> products =  productRepository.findByState(State.ACTIVE, pageable);
+        return products.map(Product::toDto);
     }
 
     @Override
-    public Product getProductById(Long id) {
-        Optional<Product> optionalProduct = productRepository.findById(id);
-        return optionalProduct.orElse(null);
+    public ProductDto getProductByIdToClient(UUID id) {
+        Product product =  productRepository.findById(id)
+                .orElseThrow(() -> new ProductNotFoundException("Product not found with id: " + id));
+        return product.toDto();
     }
 
     @Override
-    public List<Product> getAllProducts() {
-        return productRepository.findAll();
+    public Product getProductById(UUID id) {
+        return productRepository.findById(id)
+                .orElseThrow(() -> new ProductNotFoundException("Product not found with id: " + id));
     }
 
     @Override
-    public Product createProduct(Product input) {
-        Optional<Product> optionalProduct = productRepository.findById(input.getId());
+    public Page<ProductDto> getProductsByCategory(UUID categoryId, Pageable pageable) {
+        Page<Product> products =  productRepository.findByCategoryId(categoryId, pageable);
+        return products.map(Product::toDto);
+    }
 
-        if(optionalProduct.isEmpty()){
-            return productRepository.save(input);
-        }else{
-            // we can throw an exception that product already exists
-            return null;
+    @Override
+    @Transactional
+    public ProductDto createProduct(Product product) {
+        Product savedProduct = productRepository.save(product);
+        return savedProduct.toDto();
+    }
+
+    @Override
+    @Transactional
+    public ProductDto replaceProduct(UUID id, Product newProduct) {
+        Product existing = getProductById(id);
+
+        existing.setName(newProduct.getName());
+        existing.setDescription(newProduct.getDescription());
+        existing.setPrice(newProduct.getPrice());
+        existing.setStockQuantity(newProduct.getStockQuantity());
+        existing.setImageUrl(newProduct.getImageUrl());
+        existing.setCategory(newProduct.getCategory());
+        return productRepository.save(existing).toDto();
+    }
+
+    @Override
+    @Transactional
+    public ProductDto updateProduct(UUID id, Product updatedProduct) {
+        Product existing = getProductById(id);
+
+        if (updatedProduct.getName() != null) {
+            existing.setName(updatedProduct.getName());
         }
+
+        if (updatedProduct.getDescription() != null) {
+            existing.setDescription(updatedProduct.getDescription());
+        }
+
+        if (updatedProduct.getPrice() != null) {
+            existing.setPrice(updatedProduct.getPrice());
+        }
+
+        if (updatedProduct.getStockQuantity() != null) {
+            existing.setStockQuantity(updatedProduct.getStockQuantity());
+        }
+
+        if (updatedProduct.getImageUrl() != null) {
+            existing.setImageUrl(updatedProduct.getImageUrl());
+        }
+
+        return productRepository.save(existing).toDto();
     }
 
-    //PUT request
-    //this will update the entire product
     @Override
-    public Product replaceProduct(Product input, Long productId) {
-        /*
-        productId = 10
-        input
-        id = 10
-        name = "iPhone 15"
-        category = "electronics"
-        createdAt = <should be same as existing>
-
-        input
-
-         */
-        Optional<Product> optionalProduct = productRepository.findById(productId);
-
-        if(optionalProduct.isEmpty()){
-            //Don't create a new product since we are just replacing
-            return null;
-        }else{
-            input.setId(productId);
-            input.setCreatedAt(optionalProduct.get().getCreatedAt());
-
-            return productRepository.save(input);
-        }
+    @Transactional
+    public void deleteProduct(UUID id) {
+        Product product =  getProductById(id);
+        product.setState(State.INACTIVE);
+        productRepository.save(product);
     }
 
-
-    public boolean deleteProduct(Long id){
-        Optional<Product> optionalProduct = productRepository.findById(id);
-
-        if(optionalProduct.isEmpty()) {
-            return false;
-        }else{
-            Product product = optionalProduct.get();
-            if(product.getState().equals(State.ACTIVE)){
-                product.setState(State.INACTIVE);
-                productRepository.save(product);
-                return true;
-            }
-            return false;
-        }
+    @Override
+    public Page<CategoryDto> getAllCategories(Pageable pageable) {
+        Page<Category> categories = categoryRepository.findAll(pageable);
+        return categories.map(Category::toDto);
     }
 
-    /*
-    HW: Implement updateProduct
-    Wherever you're fetching products, you should make sure they are active
-     */
+    @Override
+    @Transactional
+    public CategoryDto createCategory(Category category) {
+        return categoryRepository.save(category).toDto();
+    }
+
 }
