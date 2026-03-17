@@ -1,6 +1,5 @@
 package com.capstone.apigateway.configs;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.http.HttpHeaders;
@@ -10,14 +9,13 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 @Component
-@RequiredArgsConstructor
 public class JwtAuthFilter extends AbstractGatewayFilterFactory<JwtAuthFilter.Config> {
 
     private final JwtUtil utils;
 
-    public JwtAuthFilter() {
+    public JwtAuthFilter(JwtUtil utils) {
         super(Config.class);
-        this.utils = null;
+        this.utils = utils;
     }
 
     @Override
