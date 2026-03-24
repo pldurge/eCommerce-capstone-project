@@ -16,6 +16,10 @@
         <module>api-gateway</module>
         <module>user-service</module>
         <module>product-catalog-service</module>
+        <module>cart-service</module>
+        <module>order-service</module>
+        <module>notification-service</module>
+        <module>payment-service</module>
     </modules>
 
     <parent>
