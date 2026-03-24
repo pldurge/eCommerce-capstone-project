@@ -18,8 +18,8 @@ import java.util.Map;
 @Slf4j
 public class NotificationService {
 
-    private JavaMailSender mailSender;
-    private UserServiceClient userServiceClient;
+    private final JavaMailSender mailSender;
+    private final UserServiceClient userServiceClient;
 
     @Value("${app.notification.from-email}")
     private String fromEmail;
@@ -28,7 +28,7 @@ public class NotificationService {
     private String fromName;
 
     // ─── Kafka Listeners ─────────────────────────────────────────────────────
-    @KafkaListener(topics = "user-registered", groupId = "notification-service-group")
+    @KafkaListener(topics = "user_registered", groupId = "notification-service-group")
     public void handleUserRegistered(Map<String, Object> map) {
         try{
             //Email is directly available in the registration event
@@ -40,7 +40,7 @@ public class NotificationService {
         }
     }
 
-    @KafkaListener(topics = "user-logged", groupId = "notification-service-group")
+    @KafkaListener(topics = "user_logged", groupId = "notification-service-group")
     public void handleUserLogged(Map<String, Object> map) {
         try{
             String email = (String) map.get("email");
@@ -51,7 +51,7 @@ public class NotificationService {
         }
     }
 
-    @KafkaListener(topics = "password-reset-requested", groupId = "notification-service-group")
+    @KafkaListener(topics = "password_reset", groupId = "notification-service-group")
     public void handlePasswordResetRequested(Map<String, Object> map) {
         try{
             String email = (String) map.get("email");

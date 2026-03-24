@@ -1,7 +1,7 @@
 package com.capstone.userauthentication.controllers;
 
 
-import com.capstone.userauthentication.services.IAuthenticationService;
+import com.capstone.userauthentication.services.AuthenticationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,7 +17,7 @@ import java.util.UUID;
 @RestController
 @RequiredArgsConstructor
 public class AuthenticationController {
-    private final IAuthenticationService authenticationService;
+    private final AuthenticationService authenticationService;
 
     // ─── Auth Endpoints ──────────────────────────────────────────────────────
     @PostMapping("/api/auth/register")
@@ -32,6 +32,31 @@ public class AuthenticationController {
 
     // ─── User Profile Endpoints ──────────────────────────────────────────────
 
+    @PostMapping("/api/auth/refresh")
+    public ResponseEntity<TokenRefreshResponse> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+        return ResponseEntity.ok(authenticationService.refreshToken(request));
+    }
+
+    @PostMapping("/api/auth/logout")
+    public ResponseEntity<Void> logout(@Valid @RequestBody LogoutRequest request) {
+        authenticationService.logout(request);
+        return ResponseEntity.noContent().build();
+    }
+
+    // Step 1 — request password reset email
+    @PostMapping("/api/auth/password-reset")
+    public ResponseEntity<Void> requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {
+        authenticationService.requestPasswordReset(request);
+        return ResponseEntity.accepted().build();
+    }
+
+    //  Step 2 — confirm reset using the token from the email link
+    @PostMapping("/api/auth/password-reset/confirm")
+    public ResponseEntity<Void> confirmPasswordReset(@Valid @RequestBody PasswordChangeRequest request) {
+        authenticationService.confirmPasswordReset(request);
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/api/users/me")
     public ResponseEntity<UserProfileResponse> getMyProfile(@AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(authenticationService.getProfile(userDetails.getUsername()));
@@ -44,12 +69,11 @@ public class AuthenticationController {
         return ResponseEntity.ok(authenticationService.updateProfile(userDetails.getUsername(), request));
     }
 
-//    // In UserController
-//    @PostMapping("/api/admin/users")
-//    @PreAuthorize("hasRole('ADMIN')")
-//    public ResponseEntity<UserProfileResponse> createAdmin(@Valid @RequestBody RegisterRequest request) {
-//        return ResponseEntity.status(HttpStatus.CREATED).body(authenticationService.registerAdmin(request));
-//    }
+    @PostMapping("/api/admin/add")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<AuthResponse> createAdmin(@Valid @RequestBody RegisterRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(authenticationService.registerAdmin(request));
+    }
 
     // FIX 3 (internal): Called by notification-service to resolve userId → email
     @GetMapping("/api/users/internal/{userId}")

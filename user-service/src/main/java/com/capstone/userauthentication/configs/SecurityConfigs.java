@@ -39,6 +39,7 @@ public class SecurityConfigs {
                                 "/api/auth/login",
                                 "/api/auth/refresh",
                                 "/api/auth/password-reset",
+                                "/api/auth/password-reset/confirm",
                                 "/actuator/**"
                         ).permitAll()
                         // Internal endpoint — restricted at the network level (not exposed via gateway)

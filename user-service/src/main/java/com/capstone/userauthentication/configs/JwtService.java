@@ -23,18 +23,14 @@ public class JwtService {
     @Value("${app.jwt.expiration}")
     private long expiration;
 
-//    @Value("${app.jwt.refresh-secret}")
-//    private String refreshSecret;
-//
-//    @Value("${app.jwt.refresh-expiration}")
-//    private long refreshExpiration;
+    @Value("${app.jwt.refresh-secret}")
+    private String refreshSecret;
 
-    private SecretKey getSigningKey(){
-        return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-    }
+    @Value("${app.jwt.refresh-expiration}")
+    private long refreshExpiration;
 
-    public String generateToken(UserDetails userDetails){
-        return generateToken(new HashMap<>(), userDetails);
+    private SecretKey getSecretKey(String keyString){
+        return Keys.hmacShaKeyFor(keyString.getBytes(StandardCharsets.UTF_8));
     }
 
     // ─── Access Token ────────────────────────────────────────────────────────
@@ -42,6 +38,11 @@ public class JwtService {
      * Generates an access token with role embedded as a claim.
      * The API Gateway reads "role" to forward X-User-Role to downstream services.
      */
+
+    public String generateToken(UserDetails userDetails){
+        return generateToken(new HashMap<>(), userDetails);
+    }
+
     public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails){
         Map<String, Object> claims = new HashMap<>(extraClaims);
         // Embed ROLE in token — gateway will forward as X-User-Role header
@@ -72,22 +73,22 @@ public class JwtService {
     }
     // ─── Refresh Token ────────────────────────────────────────────────────────
 
-//    public String generateRefreshToken(UserDetails userDetails) {
-//        return buildToken(new HashMap<>(), userDetails, refreshSecret, refreshExpiration);
-//    }
-//
-//    public boolean isRefreshTokenValid(String token, UserDetails userDetails) {
-//        return extractRefreshTokenUsername(token).equals(userDetails.getUsername())
-//                && !isTokenExpired(token, refreshSecret);
-//    }
-//
-//    public String extractRefreshTokenUsername(String token) {
-//        return extractClaim(token, Claims::getSubject, refreshSecret);
-//    }
-//
-//    public long getRefreshExpirationMillis() {
-//        return refreshExpiration;
-//    }
+    public String generateRefreshToken(UserDetails userDetails) {
+        return buildToken(new HashMap<>(), userDetails, refreshSecret, refreshExpiration);
+    }
+
+    public boolean isRefreshTokenValid(String token, UserDetails userDetails) {
+        return extractRefreshTokenUsername(token).equals(userDetails.getUsername())
+                && !isTokenExpired(token, refreshSecret);
+    }
+
+    public String extractRefreshTokenUsername(String token) {
+        return extractClaim(token, Claims::getSubject, refreshSecret);
+    }
+
+    public long getRefreshExpirationMillis() {
+        return refreshExpiration;
+    }
 
     // ─── Shared Helpers ──────────────────────────────────────────────────────
 
@@ -98,7 +99,7 @@ public class JwtService {
                 .subject(userDetails.getUsername())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + ttl))
-                .signWith(getSigningKey())
+                .signWith(getSecretKey(signingSecret))
                 .compact();
     }
 
@@ -112,7 +113,7 @@ public class JwtService {
 
     private Claims extractAllClaims(String token, String signingSecret) {
         return Jwts.parser()
-                .verifyWith(getSigningKey())
+                .verifyWith(getSecretKey(signingSecret))
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();

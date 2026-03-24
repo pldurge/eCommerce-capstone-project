@@ -1,6 +1,7 @@
 package com.capstone.cartservice.controller;
 
 import com.capstone.cartservice.models.Cart;
+import com.capstone.cartservice.models.CartItem;
 import com.capstone.cartservice.service.CartService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -31,7 +32,7 @@ public class CartController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Cart> addItem(
             @RequestHeader("X-User-Name") String userId,
-            @RequestBody Cart.CartItem item) {
+            @RequestBody CartItem item) {
         return ResponseEntity.ok(cartService.addItem(userId, item));
     }
 

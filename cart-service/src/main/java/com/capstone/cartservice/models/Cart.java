@@ -11,7 +11,6 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.UUID;
 
 @Document(collection = "carts")
 @Data
@@ -40,17 +39,5 @@ public class Cart {
     public int getTotalItems() {
         return items.stream()
                 .mapToInt(CartItem::getQuantity).sum();
-    }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class CartItem{
-        private UUID productId;
-        private String productName;
-        private BigDecimal price;
-        private int quantity;
-        private String imageUrl;
     }
 }

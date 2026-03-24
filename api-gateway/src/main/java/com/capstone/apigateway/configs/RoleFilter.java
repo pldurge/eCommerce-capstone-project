@@ -53,9 +53,8 @@ public class RoleFilter extends AbstractGatewayFilterFactory<RoleFilter.Config> 
     }
 
     public static class Config {
-        private String requiredRole = "ROLE_ADMIN";
+        private final String requiredRole = "ROLE_ADMIN";
 
         public String getRequiredRole() { return requiredRole; }
-        public void setRequiredRole(String requiredRole) { this.requiredRole = requiredRole; }
     }
 }

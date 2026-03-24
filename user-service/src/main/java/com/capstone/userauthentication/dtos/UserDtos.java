@@ -36,7 +36,8 @@ public class UserDtos {
     @Data
     @AllArgsConstructor
     public static class AuthResponse{
-        private String token;
+        private String accessToken;
+        private String refreshToken;
         private String email;
         private String name;
         private String role;
@@ -71,6 +72,34 @@ public class UserDtos {
 
         @NotBlank
         private String resetToken;
+    }
+
+    // FIX 1: Token exchange for new access token
+    @Data
+    public static class RefreshTokenRequest {
+        @NotBlank
+        private String refreshToken;
+    }
+
+    // FIX 1: Carries the access token being invalidated on logout
+    @Data
+    public static class LogoutRequest {
+        @NotBlank
+        private String accessToken;
+
+        @NotBlank
+        private String refreshToken;
+    }
+
+    @Data
+    public static class TokenRefreshResponse {
+        private String accessToken;
+        private String refreshToken;
+
+        public TokenRefreshResponse(String accessToken, String refreshToken) {
+            this.accessToken = accessToken;
+            this.refreshToken = refreshToken;
+        }
     }
 
 }

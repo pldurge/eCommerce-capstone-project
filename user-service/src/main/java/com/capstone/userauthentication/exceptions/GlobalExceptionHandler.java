@@ -29,4 +29,17 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.UNAUTHORIZED)
                 .body(ex.getMessage());
     }
+
+    @ExceptionHandler(SessionExpiredException.class)
+    public ResponseEntity<String> handleSessionExpired(SessionExpiredException ex){
+        return new ResponseEntity<>(ex.getMessage(), HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleGeneral(Exception ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ErrorResponse("An unexpected error occurred", 500));
+    }
+
+    public record ErrorResponse(String message, int status) {}
 }
