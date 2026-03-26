@@ -2,6 +2,7 @@ package com.capstone.apigateway.configs;
 
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -11,39 +12,50 @@ import reactor.core.publisher.Mono;
 @Component
 public class JwtAuthFilter extends AbstractGatewayFilterFactory<JwtAuthFilter.Config> {
 
-    private final JwtUtil utils;
+    private static final String BLACKLIST_PREFIX = "blacklist:";
 
-    public JwtAuthFilter(JwtUtil utils) {
+    private final JwtUtil utils;
+    private final ReactiveStringRedisTemplate redisTemplate;
+
+    public JwtAuthFilter(JwtUtil utils,  ReactiveStringRedisTemplate redisTemplate) {
         super(Config.class);
         this.utils = utils;
+        this.redisTemplate = redisTemplate;
     }
 
     @Override
-    public GatewayFilter apply(Config config){
-        return (exchange, chain) ->{
+    public GatewayFilter apply(Config config) {
+        return (exchange, chain) -> {
             String authHeader = exchange.getRequest().getHeaders()
                     .getFirst(HttpHeaders.AUTHORIZATION);
 
-            if(authHeader == null || !authHeader.startsWith("Bearer ")){
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 return unauthorized(exchange, "Missing or Invalid Authorization Header");
             }
 
             String token = authHeader.substring(7);
 
-            if(!utils.isTokenValid(token)) {
+            if (!utils.isTokenValid(token)) {
                 return unauthorized(exchange, "Token Invalid or Expired");
             }
 
-            String username = utils.extractUsername(token);
+            // Check Redis blacklist — rejects tokens invalidated by logout
+            return redisTemplate.hasKey(BLACKLIST_PREFIX + token)
+                    .flatMap(blacklisted -> {
+                        if (Boolean.TRUE.equals(blacklisted)) {
+                            return unauthorized(exchange, "Token has been invalidated. Please login again.");
+                        }
 
-            String role = utils.extractRole(token);
+                        String username = utils.extractUsername(token);
+                        String role = utils.extractRole(token);
 
-            var mutatedRequest = exchange.getRequest().mutate()
-                    .header("X-User-Name", username)
-                    .header("X-User-Role", role)
-                    .build();
+                        var mutatedRequest = exchange.getRequest().mutate()
+                                .header("X-User-Name", username)
+                                .header("X-User-Role", role)
+                                .build();
 
-            return chain.filter(exchange.mutate().request(mutatedRequest).build());
+                        return chain.filter(exchange.mutate().request(mutatedRequest).build());
+                    });
         };
     }
 

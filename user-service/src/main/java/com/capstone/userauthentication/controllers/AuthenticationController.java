@@ -7,8 +7,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import com.capstone.userauthentication.dtos.UserDtos.*;
 
@@ -38,9 +36,9 @@ public class AuthenticationController {
     }
 
     @PostMapping("/api/auth/logout")
-    public ResponseEntity<Void> logout(@Valid @RequestBody LogoutRequest request) {
+    public ResponseEntity<String> logout(@Valid @RequestBody LogoutRequest request) {
         authenticationService.logout(request);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok().body("You have been logged out Successfully !");
     }
 
     // Step 1 — request password reset email
@@ -58,15 +56,15 @@ public class AuthenticationController {
     }
 
     @GetMapping("/api/users/me")
-    public ResponseEntity<UserProfileResponse> getMyProfile(@AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(authenticationService.getProfile(userDetails.getUsername()));
+    public ResponseEntity<UserProfileResponse> getMyProfile(@RequestHeader("X-User-Name") String userEmail) {
+        return ResponseEntity.ok(authenticationService.getProfile(userEmail));
     }
 
     @PutMapping("/api/users/me")
     public ResponseEntity<UserProfileResponse> updateMyProfile(
-            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestHeader("X-User-Name") String email,
             @RequestBody UpdateProfileRequest request) {
-        return ResponseEntity.ok(authenticationService.updateProfile(userDetails.getUsername(), request));
+        return ResponseEntity.ok(authenticationService.updateProfile(email, request));
     }
 
     @PostMapping("/api/admin/add")

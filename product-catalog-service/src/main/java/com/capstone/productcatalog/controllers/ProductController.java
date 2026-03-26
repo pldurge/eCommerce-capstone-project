@@ -91,9 +91,9 @@ public class ProductController {
 
     @DeleteMapping("/api/products/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteProduct(@PathVariable UUID id) {
+    public ResponseEntity<String> deleteProduct(@PathVariable UUID id) {
         productService.deleteProduct(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.status(HttpStatus.GONE).body("Product with id " + id + " has been deleted");
     }
 
     @PostMapping("/api/categories")

@@ -137,7 +137,7 @@ public class NotificationService {
         log.info("Login email sent to: {}", toEmail);
     }
 
-    private void sendPasswordResetEmail(String toEmail, String firstName, String resetToken) {
+    private void sendPasswordResetEmail(String toEmail, String name, String resetToken) {
         String subject   = "Password Reset Request";
         String resetLink = "https://ecommerce.com/reset-password?token=" + resetToken;
         String body = String.format("""
@@ -151,7 +151,7 @@ public class NotificationService {
                 If you didn't request this, please ignore this email.
 
                 The Ecommerce Team
-                """, firstName, resetLink);
+                """, name, resetLink);
         sendEmail(toEmail, subject, body);
         log.info("Password reset email sent to: {}", toEmail);
     }
