@@ -69,6 +69,7 @@ services:
 
 volumes:
   mongo-data:
+  es-data:
 
 networks:
   ecommerce-net:

@@ -2,7 +2,6 @@ package com.capstone.productcatalog.exceptions;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -31,8 +30,4 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied !!");
     }
 
-    @ExceptionHandler(AuthorizationDeniedException.class)
-    public ResponseEntity<?> handleAccessDeniedException(AuthorizationDeniedException e) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied !!");
-    }
 }
