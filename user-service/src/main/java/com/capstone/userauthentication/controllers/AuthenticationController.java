@@ -30,11 +30,6 @@ public class AuthenticationController {
 
     // ─── User Profile Endpoints ──────────────────────────────────────────────
 
-    @PostMapping("/api/auth/refresh")
-    public ResponseEntity<TokenRefreshResponse> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
-        return ResponseEntity.ok(authenticationService.refreshToken(request));
-    }
-
     @PostMapping("/api/auth/logout")
     public ResponseEntity<String> logout(@Valid @RequestBody LogoutRequest request) {
         authenticationService.logout(request);

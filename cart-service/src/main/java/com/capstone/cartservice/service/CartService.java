@@ -1,5 +1,8 @@
 package com.capstone.cartservice.service;
 
+import com.capstone.cartservice.client.ProductCatalogClient;
+import com.capstone.cartservice.dto.AddToCartRequest;
+import com.capstone.cartservice.dto.ProductResponse;
 import com.capstone.cartservice.models.Cart;
 import com.capstone.cartservice.models.CartItem;
 import com.capstone.cartservice.repository.CartRepository;
@@ -27,6 +30,7 @@ public class CartService {
     private final CartRepository cartRepository;
     private final RedisTemplate<String, Object> redisTemplate;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final ProductCatalogClient productCatalogClient;
 
     @Value("${app.cart.ttl-seconds:86400}")
     private long cartTtlSeconds;
@@ -48,39 +52,49 @@ public class CartService {
         return cart;
     }
 
-    public Cart addItem(String userId, CartItem item){
+    public Cart addItem(String userId, AddToCartRequest request){
+        if(request.getQuantity() < 0) throw new IllegalArgumentException("Invalid Quantity, Quantity must be greater than zero");
+        if(request.getQuantity() == 0) return removeItem(userId, request.getProductId());
+
+        ProductResponse response = productCatalogClient.getProduct(request.getProductId());
+        if(response == null) throw new IllegalArgumentException("Product not found with ID: " + request.getProductId());
+
+        int available = response.getStockQuantity() == null ? 0 : response.getStockQuantity();
+        if (available < request.getQuantity()) {
+            throw new RuntimeException(
+                    "Insufficient stock for \"" + response.getName() + "\". "
+                            + "Available: " + available + ", Requested: " + request.getQuantity());
+        }
+
         Cart cart = getCart(userId);
         Optional<CartItem> existingItem = cart.getItems().stream()
-                .filter(i -> i.getProductId().equals(item.getProductId()))
+                .filter(i -> i.getProductId().equals(request.getProductId()))
                 .findFirst();
 
         if(existingItem.isPresent()){
-            existingItem.get().setQuantity(existingItem.get().getQuantity() + item.getQuantity());
+            CartItem item = existingItem.get();
+            item.setQuantity(item.getQuantity() + request.getQuantity());
+            item.setPrice(response.getPrice());
         }else{
-            cart.getItems().add(item);
+            cart.getItems().add(CartItem.builder()
+                    .productId(response.getId())
+                    .productName(response.getName())
+                    .price(response.getPrice())
+                    .quantity(request.getQuantity())
+                    .imageUrl(response.getImageUrl())
+                    .build()
+            );
         }
 
         cart.setUpdatedAt(new Date());
         cart = cartRepository.save(cart);
         cacheCart(userId, cart);
+
         kafkaTemplate.send(CART_UPDATED_TOPIC, userId,
-                Map.of("userId", userId, "action", "ADD_ITEM", "productId", item.getProductId()));
+                Map.of("userId", userId, "action", "UPSERT_ITEM",
+                        "productId", request.getProductId(),
+                        "quantity", request.getQuantity()));
 
-        return cart;
-    }
-
-    public Cart updateItemQuantity(String userId, UUID productId, int quantity){
-        Cart cart = getCart(userId);
-        if(quantity <= 0) return removeItem(userId, productId);
-
-        cart.getItems().stream()
-                .filter(i -> i.getProductId().equals(productId))
-                .findFirst()
-                .ifPresent(i -> i.setQuantity(quantity));
-
-        cart.setUpdatedAt(new Date());
-        cart = cartRepository.save(cart);
-        cacheCart(userId, cart);
         return cart;
     }
 

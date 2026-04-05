@@ -3,7 +3,6 @@ package com.capstone.userauthentication.services;
 import com.capstone.userauthentication.configs.JwtService;
 import com.capstone.userauthentication.configs.KafkaConfigs;
 import com.capstone.userauthentication.dtos.UserDtos.*;
-import com.capstone.userauthentication.exceptions.SessionExpiredException;
 import com.capstone.userauthentication.exceptions.UserAlreadyExistsException;
 import com.capstone.userauthentication.models.Role;
 import com.capstone.userauthentication.models.User;
@@ -29,9 +28,8 @@ import java.util.concurrent.TimeUnit;
 public class AuthenticationService{
 
     private static final String BLACKLIST_PREFIX  = "blacklist:";
-    private static final String REFRESH_PREFIX    = "refresh:";
     private static final String PWD_RESET_PREFIX  = "pwd_reset:";
-    private static final long   PWD_RESET_TTL_SEC = 3600; // 1 hour
+    private static final long PWD_RESET_TTL_SEC = 3600; // 1 hour
 
     private final UserRepository userRepository;
     private final JwtService jwtService;
@@ -62,9 +60,7 @@ public class AuthenticationService{
 
         log.info("User Registered: {}", user.getEmail());
         String accessToken  = jwtService.generateToken(user);
-        String refreshToken = jwtService.generateRefreshToken(user);
-        storeRefreshToken(refreshToken, user.getEmail());
-        return new AuthResponse(accessToken, refreshToken, user.getEmail(), user.getName(), user.getRole().name());
+        return new AuthResponse(accessToken, user.getEmail(), user.getName(), user.getRole().name());
     }
 
 
@@ -77,39 +73,16 @@ public class AuthenticationService{
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
         String accessToken = jwtService.generateToken(user);
-        String refreshToken = jwtService.generateRefreshToken(user);
-        storeRefreshToken(refreshToken, user.getEmail());
 
         kafkaTemplate.send(KafkaConfigs.USER_LOGGED_TOPIC, user.getId().toString(),
                 Map.of("userId", user.getId(), "email", user.getEmail(), "name", user.getName()));
 
         log.info("User logged in: {}", user.getEmail());
 
-        return new AuthResponse(accessToken, refreshToken, user.getEmail(), user.getName(), user.getRole().name());
+        return new AuthResponse(accessToken, user.getEmail(), user.getName(), user.getRole().name());
     }
 
-    public TokenRefreshResponse refreshToken(RefreshTokenRequest request) {
-        String storedEmail = redisTemplate.opsForValue().get(REFRESH_PREFIX + request.getRefreshToken());
-        if(storedEmail == null) {
-            throw new SessionExpiredException("Refresh token is invalid or expired. Please log in again.");
-        }
 
-        User user = userRepository.findByEmail(storedEmail)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-
-        if (!jwtService.isRefreshTokenValid(request.getRefreshToken(), user)) {
-            redisTemplate.delete(REFRESH_PREFIX + request.getRefreshToken());
-            throw new SessionExpiredException("Refresh token is invalid or expired. Please log in again.");
-        }
-
-        redisTemplate.delete(REFRESH_PREFIX + request.getRefreshToken());
-        String newAccessToken  = jwtService.generateToken(user);
-        String newRefreshToken = jwtService.generateRefreshToken(user);
-        storeRefreshToken(newRefreshToken, user.getEmail());
-
-        log.info("Tokens refreshed for: {}", user.getEmail());
-        return new TokenRefreshResponse(newAccessToken, newRefreshToken);
-    }
 
     public void logout(LogoutRequest request) {
         // Blacklist the access token for its remaining lifetime
@@ -123,7 +96,6 @@ public class AuthenticationService{
             );
         }
         // Invalidate the refresh token immediately
-        redisTemplate.delete(REFRESH_PREFIX + request.getRefreshToken());
         log.info("User logged out, tokens invalidated");
     }
 
@@ -215,14 +187,12 @@ public class AuthenticationService{
         user = userRepository.save(user);
 
         String accessToken = jwtService.generateToken(user);
-        String refreshToken = jwtService.generateRefreshToken(user);
-        storeRefreshToken(refreshToken, user.getEmail());
 
         kafkaTemplate.send(KafkaConfigs.USER_REGISTERED_TOPIC, user.getId().toString(),
                 Map.of("userId", user.getId(), "email", user.getEmail(), "name", user.getName()));
 
         log.info("Admin User Registered: {}", user.getEmail());
-        return new AuthResponse(accessToken, refreshToken, user.getEmail(), user.getName(), user.getRole().name());
+        return new AuthResponse(accessToken, user.getEmail(), user.getName(), user.getRole().name());
     }
 
 
@@ -232,14 +202,4 @@ public class AuthenticationService{
         return getUserProfileResponse(user);
 
     }
-
-    private void storeRefreshToken(String token, String email) {
-        redisTemplate.opsForValue().set(
-                REFRESH_PREFIX + token,
-                email,
-                jwtService.getRefreshExpirationMillis(),
-                TimeUnit.MILLISECONDS
-        );
-    }
-
 }

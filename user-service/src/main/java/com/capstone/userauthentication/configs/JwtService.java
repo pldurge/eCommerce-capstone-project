@@ -23,12 +23,6 @@ public class JwtService {
     @Value("${app.jwt.expiration}")
     private long expiration;
 
-    @Value("${app.jwt.refresh-secret}")
-    private String refreshSecret;
-
-    @Value("${app.jwt.refresh-expiration}")
-    private long refreshExpiration;
-
     private SecretKey getSecretKey(String keyString){
         return Keys.hmacShaKeyFor(keyString.getBytes(StandardCharsets.UTF_8));
     }
@@ -63,31 +57,9 @@ public class JwtService {
         return extractClaim(token, Claims::getSubject, secret);
     }
 
-    public String extractRole(String token) {
-        return (String) extractAllClaims(token, secret).get("role");
-    }
-
     public long getExpirationMillis(String token) {
         return extractClaim(token, Claims::getExpiration, secret).getTime()
                 - System.currentTimeMillis();
-    }
-    // ─── Refresh Token ────────────────────────────────────────────────────────
-
-    public String generateRefreshToken(UserDetails userDetails) {
-        return buildToken(new HashMap<>(), userDetails, refreshSecret, refreshExpiration);
-    }
-
-    public boolean isRefreshTokenValid(String token, UserDetails userDetails) {
-        return extractRefreshTokenUsername(token).equals(userDetails.getUsername())
-                && !isTokenExpired(token, refreshSecret);
-    }
-
-    public String extractRefreshTokenUsername(String token) {
-        return extractClaim(token, Claims::getSubject, refreshSecret);
-    }
-
-    public long getRefreshExpirationMillis() {
-        return refreshExpiration;
     }
 
     // ─── Shared Helpers ──────────────────────────────────────────────────────

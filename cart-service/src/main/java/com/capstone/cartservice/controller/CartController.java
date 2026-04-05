@@ -1,5 +1,6 @@
 package com.capstone.cartservice.controller;
 
+import com.capstone.cartservice.dto.AddToCartRequest;
 import com.capstone.cartservice.models.Cart;
 import com.capstone.cartservice.models.CartItem;
 import com.capstone.cartservice.service.CartService;
@@ -32,18 +33,10 @@ public class CartController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Cart> addItem(
             @RequestHeader("X-User-Name") String userId,
-            @RequestBody CartItem item) {
-        return ResponseEntity.ok(cartService.addItem(userId, item));
+            @RequestBody AddToCartRequest request) {
+        return ResponseEntity.ok(cartService.addItem(userId, request));
     }
-
-    @PutMapping("/items/{productId}")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Cart> updateQuantity(
-            @RequestHeader("X-User-Name") String userId,
-            @PathVariable UUID productId,
-            @RequestParam int quantity) {
-        return ResponseEntity.ok(cartService.updateItemQuantity(userId, productId, quantity));
-    }
+    
 
     @DeleteMapping("/items/{productId}")
     @PreAuthorize("isAuthenticated()")
