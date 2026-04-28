@@ -154,5 +154,17 @@ public class StorageProductService implements IProductService{
         log.info("Product indexed in Elasticsearch: {}", product.getId());
     }
 
+    @Override
+    @Transactional
+    public boolean reduceStock(UUID productId, int quantity) {
+        int updated = productRepository.reduceStock(productId, quantity);
+        if (updated == 0) {
+            log.warn("Insufficient stock for product={} qty={}", productId, quantity);
+            return false;
+        }
+        log.info("Stock reduced by {} for product={}", quantity, productId);
+        return true;
+    }
+
 
 }

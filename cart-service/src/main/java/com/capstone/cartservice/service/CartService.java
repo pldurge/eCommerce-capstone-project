@@ -73,7 +73,7 @@ public class CartService {
 
         if(existingItem.isPresent()){
             CartItem item = existingItem.get();
-            item.setQuantity(item.getQuantity() + request.getQuantity());
+            item.setQuantity(request.getQuantity()); // absolute set — not cumulative
             item.setPrice(response.getPrice());
         }else{
             cart.getItems().add(CartItem.builder()
@@ -87,6 +87,7 @@ public class CartService {
         }
 
         cart.setUpdatedAt(new Date());
+        cart.recalculate();
         cart = cartRepository.save(cart);
         cacheCart(userId, cart);
 
@@ -94,7 +95,6 @@ public class CartService {
                 Map.of("userId", userId, "action", "UPSERT_ITEM",
                         "productId", request.getProductId(),
                         "quantity", request.getQuantity()));
-
         return cart;
     }
 
@@ -102,12 +102,12 @@ public class CartService {
         Cart cart = getCart(userId);
         cart.getItems().removeIf(i -> i.getProductId().equals(productId));
         cart.setUpdatedAt(new Date());
+        cart.recalculate();
         cart = cartRepository.save(cart);
         cacheCart(userId, cart);
 
         kafkaTemplate.send(CART_UPDATED_TOPIC, userId,
                 Map.of("userId", userId, "action", "REMOVE_ITEM", "productId", productId));
-
         return cart;
     }
 

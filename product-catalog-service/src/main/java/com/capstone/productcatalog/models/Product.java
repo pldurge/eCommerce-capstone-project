@@ -40,6 +40,7 @@ public class Product extends BaseModel{
         productDto.setName(this.getName());
         productDto.setDescription(this.getDescription());
         productDto.setPrice(this.getPrice());
+        productDto.setStockQuantity(this.getStockQuantity());
         productDto.setImageUrl(this.getImageUrl());
         if(this.getCategory() != null) {
             CategoryDto categoryDto = new CategoryDto();

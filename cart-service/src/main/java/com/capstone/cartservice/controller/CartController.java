@@ -48,8 +48,8 @@ public class CartController {
 
     @DeleteMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Void> clearCart(@RequestHeader("X-User-Name") String userId) {
+    public ResponseEntity<String> clearCart(@RequestHeader("X-User-Name") String userId) {
         cartService.clearCart(userId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok().body("Cart has been cleared");
     }
 }

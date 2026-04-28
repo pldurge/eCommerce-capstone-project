@@ -2,7 +2,6 @@ package com.capstone.paymentservice.controller;
 
 import com.capstone.paymentservice.model.PaymentTransaction;
 import com.capstone.paymentservice.service.PaymentService;
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,22 +16,42 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
-    /*
-     * Process a payment for a pending transaction.
-     * Any authenticated user can process their own payment.
+    /**
+     * List all PENDING payment transactions for the current user.
+     * Use this to know which orders need payment before calling /checkout.
      */
-    @PostMapping("/{paymentId}/process")
+    @GetMapping("/pending")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<PaymentTransaction> processPayment(
-            @PathVariable String paymentId,
-            @RequestBody ProcessPaymentRequest request) {
-        return ResponseEntity.ok(paymentService.processPayment(
-                paymentId, request.getPaymentMethod(), request.getCardToken()));
+    public ResponseEntity<List<PaymentTransaction>> getPendingPayments(
+            @RequestHeader("X-User-Name") String userId) {
+        return ResponseEntity.ok(paymentService.getPendingTransactions(userId));
     }
 
     /**
-     * Get a single transaction by paymentId.
-     * Admin can see any; customer sees only their own.
+     * Initiate Stripe Checkout for an order.
+     * Pass the orderId — returns a Stripe-hosted checkoutUrl to redirect the user to.
+     * On success Stripe calls back to GET /api/payments/stripe/callback?session_id=...
+     */
+    @PostMapping("/{orderId}/checkout")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<PaymentService.CheckoutResponse> checkout(
+            @PathVariable String orderId) {
+        return ResponseEntity.ok(paymentService.initiateCheckout(orderId));
+    }
+
+    /**
+     * Stripe Checkout success/cancel callback.
+     * PUBLIC endpoint — Stripe redirects here after payment attempt.
+     * Verifies session with Stripe, updates transaction and order status.
+     */
+    @GetMapping("/stripe/callback")
+    public ResponseEntity<PaymentTransaction> stripeCallback(
+            @RequestParam("session_id") String sessionId) {
+        return ResponseEntity.ok(paymentService.handleStripeCallback(sessionId));
+    }
+
+    /**
+     * Get a single transaction. Admin sees any; customer sees only their own.
      */
     @GetMapping("/{paymentId}")
     @PreAuthorize("hasRole('ADMIN') or @paymentSecurity.isOwner(#paymentId, authentication.name)")
@@ -41,7 +60,7 @@ public class PaymentController {
     }
 
     /**
-     * Get the current user's transaction history.
+     * All transactions for the current user.
      */
     @GetMapping("/user")
     @PreAuthorize("isAuthenticated()")
@@ -50,21 +69,12 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.getUserTransactions(userId));
     }
 
-    /*
-     * Refund a payment. Admin only — customers cannot self-issue refunds.
-     * Gateway RoleFilter enforces this at the network level;
-     *
-     * @PreAuthorize enforces it as a defence-in-depth layer.
+    /**
+     * Refund a payment. Admin only.
      */
     @PostMapping("/{paymentId}/refund")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PaymentTransaction> refundPayment(@PathVariable String paymentId) {
         return ResponseEntity.ok(paymentService.refundPayment(paymentId));
-    }
-
-    @Data
-    public static class ProcessPaymentRequest {
-        private PaymentTransaction.PaymentMethod paymentMethod;
-        private String cardToken;
     }
 }

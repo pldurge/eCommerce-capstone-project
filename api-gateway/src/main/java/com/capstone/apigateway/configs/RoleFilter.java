@@ -1,18 +1,7 @@
 package com.capstone.apigateway.configs;
 
-/*
-        * Gateway filter that enforces role-based access at the routing level.
-        *
-        * Usage in application.yml:
-        *   filters:
-        *     - name: JwtAuthFilter          # must run first — validates token + injects X-User-Role
- *     - name: RoleFilter
- *       args:
-        *         requiredRole: ROLE_ADMIN
- *
-         * JwtAuthFilter MUST appear before RoleFilter in the filter chain.
- */
-
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.http.HttpStatus;
@@ -52,9 +41,9 @@ public class RoleFilter extends AbstractGatewayFilterFactory<RoleFilter.Config> 
         return exchange.getResponse().writeWith(Mono.just(buffer));
     }
 
+    @Getter
+    @Setter
     public static class Config {
-        private final String requiredRole = "ROLE_ADMIN";
-
-        public String getRequiredRole() { return requiredRole; }
+        private String requiredRole;
     }
 }

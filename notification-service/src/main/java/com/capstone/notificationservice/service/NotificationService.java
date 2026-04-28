@@ -28,6 +28,22 @@ public class NotificationService {
     private String fromName;
 
     // ─── Kafka Listeners ─────────────────────────────────────────────────────
+    @KafkaListener(topics = "order-created", groupId = "notification-service-group")
+    public void handleOrderCreated(Map<String, Object> map) {
+        try {
+            String userId      = map.get("userId").toString();
+            String orderNumber = map.get("orderNumber").toString();
+            String amount      = map.get("totalAmount").toString();
+
+            String email = resolveEmail(userId);
+            if (email != null) {
+                sendOrderConfirmationEmail(email, orderNumber, amount);
+            }
+        } catch (Exception e) {
+            log.error("Error sending order confirmation email", e);
+        }
+    }
+
     @KafkaListener(topics = "user_registered", groupId = "notification-service-group")
     public void handleUserRegistered(Map<String, Object> map) {
         try{
@@ -98,6 +114,26 @@ public class NotificationService {
 
     // ─── Email Senders ────────────────────────────────────────────────────────
 
+    private void sendOrderConfirmationEmail(String toEmail, String orderNumber, String amount) {
+        String subject = "Order Confirmed — " + orderNumber;
+        String body = String.format("""
+                Your order has been placed successfully!
+
+                Order Number : %s
+                Total Amount : ₹%s
+
+                We are preparing your order for payment. Please complete the payment
+                to confirm your order.
+
+                You can view your order details in the app.
+
+                Thank you for shopping with us!
+                The Ecommerce Team
+                """, orderNumber, amount);
+        sendEmail(toEmail, subject, body);
+        log.info("Order confirmation email sent for order: {}", orderNumber);
+    }
+
     private void sendWelcomeEmail(String toEmail, String name) {
         LocalDateTime now = LocalDateTime.now();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a");
@@ -137,7 +173,7 @@ public class NotificationService {
         log.info("Login email sent to: {}", toEmail);
     }
 
-    private void sendPasswordResetEmail(String toEmail, String name, String resetToken) {
+    private void sendPasswordResetEmail(String toEmail, String firstName, String resetToken) {
         String subject   = "Password Reset Request";
         String resetLink = "https://ecommerce.com/reset-password?token=" + resetToken;
         String body = String.format("""
@@ -151,7 +187,7 @@ public class NotificationService {
                 If you didn't request this, please ignore this email.
 
                 The Ecommerce Team
-                """, name, resetLink);
+                """, firstName, resetLink);
         sendEmail(toEmail, subject, body);
         log.info("Password reset email sent to: {}", toEmail);
     }

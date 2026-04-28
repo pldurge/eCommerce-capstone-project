@@ -38,6 +38,8 @@ public class PaymentTransaction extends BaseModel{
 
     private String gatewayTransactionId;
 
+    private String sessionId;
+
     private String failureReason;
 
     public enum PaymentStatus {

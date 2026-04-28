@@ -5,24 +5,29 @@ import com.stripe.exception.StripeException;
 import java.math.BigDecimal;
 
 public interface PaymentGatewayService {
-    /*
-     * Charge a customer for the given amount.
-     *
-     * @param amount    Amount to charge in the configured currency
-     * @param token     Payment method token (e.g. Stripe card token)
-     * @param orderId   Reference ID for idempotency and reconciliation
-     * @return          Gateway-assigned transaction ID
-     * @throws PaymentGatewayException if the charge fails
+    /**
+     * Charge via raw token (legacy / direct).
+     * Returns gateway transaction ID, or throws PaymentGatewayException on failure.
      */
     String charge(BigDecimal amount, String token, String orderId);
 
-    /*
-     * Refund a previously successful charge.
+    /**
+     * Creates a Stripe Checkout Session and returns the hosted payment URL.
+     * The user is redirected to this URL to complete payment.
      *
-     * @param gatewayTransactionId  The transaction ID returned by charge()
-     * @param amount                Amount to refund (may be partial)
-     * @return                      Gateway-assigned refund ID
-     * @throws PaymentGatewayException if the refund fails
+     * @param amount     Amount to charge
+     * @param orderId    Used as metadata and idempotency key
+     * @param successUrl Where Stripe redirects after successful payment (includes ?session_id={CHECKOUT_SESSION_ID})
+     * @param cancelUrl  Where Stripe redirects if the user cancels
+     * @return           CheckoutResult containing the sessionId and the redirect URL
+     */
+    CheckoutResult createCheckoutSession(BigDecimal amount, String orderId,
+                                         String successUrl, String cancelUrl);
+
+    /**
+     * Refund a previously successful charge.
      */
     String refund(String gatewayTransactionId, BigDecimal amount);
+
+    record CheckoutResult(String sessionId, String checkoutUrl) {}
 }

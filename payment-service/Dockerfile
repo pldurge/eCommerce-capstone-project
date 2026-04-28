@@ -2,8 +2,8 @@ FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
 
-COPY target/product-catalog-service-*.jar app.jar
+COPY target/payment-service-*.jar app.jar
 
-EXPOSE 8082
+EXPOSE 8085
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -23,24 +23,24 @@ public class JwtService {
     @Value("${app.jwt.expiration}")
     private long expiration;
 
-    private SecretKey getSecretKey(String keyString){
+    @Value("${app.jwt.refresh-secret}")
+    private String refreshSecret;
+
+    @Value("${app.jwt.refresh-expiration}")
+    private long refreshExpiration;
+
+    private SecretKey getSecretKey(String keyString) {
         return Keys.hmacShaKeyFor(keyString.getBytes(StandardCharsets.UTF_8));
     }
 
-    // ─── Access Token ────────────────────────────────────────────────────────
-    /*
-     * Generates an access token with role embedded as a claim.
-     * The API Gateway reads "role" to forward X-User-Role to downstream services.
-     */
-
-    public String generateToken(UserDetails userDetails){
+    // ─── Access Token ─────────────────────────────────────────────────────────
+    public String generateToken(UserDetails userDetails) {
         return generateToken(new HashMap<>(), userDetails);
     }
 
-    public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails){
+    public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>(extraClaims);
-        // Embed ROLE in token — gateway will forward as X-User-Role header
-        if(!claims.containsKey("role")){
+        if (!claims.containsKey("role")) {
             userDetails.getAuthorities().stream()
                     .findFirst()
                     .ifPresent(a -> claims.put("role", a.getAuthority()));
@@ -62,8 +62,25 @@ public class JwtService {
                 - System.currentTimeMillis();
     }
 
-    // ─── Shared Helpers ──────────────────────────────────────────────────────
+    // ─── Refresh Token ────────────────────────────────────────────────────────
+    public String generateRefreshToken(UserDetails userDetails) {
+        return buildToken(new HashMap<>(), userDetails, refreshSecret, refreshExpiration);
+    }
 
+    public boolean isRefreshTokenValid(String token, UserDetails userDetails) {
+        return extractRefreshTokenUsername(token).equals(userDetails.getUsername())
+                && !isTokenExpired(token, refreshSecret);
+    }
+
+    public String extractRefreshTokenUsername(String token) {
+        return extractClaim(token, Claims::getSubject, refreshSecret);
+    }
+
+    public long getRefreshExpirationMillis() {
+        return refreshExpiration;
+    }
+
+    // ─── Shared Helpers ───────────────────────────────────────────────────────
     private String buildToken(Map<String, Object> claims, UserDetails userDetails,
                               String signingSecret, long ttl) {
         return Jwts.builder()

@@ -8,7 +8,6 @@ import com.capstone.productcatalog.models.ProductDocument;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-import java.util.List;
 import java.util.UUID;
 
 public interface IProductService {
@@ -23,4 +22,5 @@ public interface IProductService {
     void deleteProduct(UUID id);
     Page<CategoryDto> getAllCategories(Pageable pageable);
     CategoryDto createCategory(Category category);
+    boolean reduceStock(UUID productId, int quantity);
 }
