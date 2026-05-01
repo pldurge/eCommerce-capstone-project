@@ -31,19 +31,15 @@ public class SecurityConfig {
     public OncePerRequestFilter headerAuthFilter() {
         return new OncePerRequestFilter() {
             @Override
-            protected void doFilterInternal(@NonNull HttpServletRequest request,
-                                            @NonNull HttpServletResponse response,
-                                            @NonNull FilterChain chain)
-                    throws ServletException, IOException {
+            protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response,
+                                           @NonNull FilterChain filterChain) throws ServletException, IOException {
                 String username = request.getHeader("X-User-Name");
-                String role     = request.getHeader("X-User-Role");
-                if (username != null && role != null
-                        && SecurityContextHolder.getContext().getAuthentication() == null) {
-                    var auth = new UsernamePasswordAuthenticationToken(
-                            username, null, List.of(new SimpleGrantedAuthority(role)));
+                String role = request.getHeader("X-User-Role");
+                if(username != null && role != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                    var auth = new UsernamePasswordAuthenticationToken(username, null, List.of(new SimpleGrantedAuthority(role)));
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 }
-                chain.doFilter(request, response);
+                filterChain.doFilter(request, response);
             }
         };
     }

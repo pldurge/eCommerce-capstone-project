@@ -3,6 +3,8 @@ package com.capstone.cartservice.service;
 import com.capstone.cartservice.client.ProductCatalogClient;
 import com.capstone.cartservice.dto.AddToCartRequest;
 import com.capstone.cartservice.dto.ProductResponse;
+import com.capstone.cartservice.exceptions.InsufficientStockException;
+import com.capstone.cartservice.exceptions.ProductNotFoundException;
 import com.capstone.cartservice.models.Cart;
 import com.capstone.cartservice.models.CartItem;
 import com.capstone.cartservice.repository.CartRepository;
@@ -57,13 +59,11 @@ public class CartService {
         if(request.getQuantity() == 0) return removeItem(userId, request.getProductId());
 
         ProductResponse response = productCatalogClient.getProduct(request.getProductId());
-        if(response == null) throw new IllegalArgumentException("Product not found with ID: " + request.getProductId());
+        if(response == null) throw new ProductNotFoundException(request.getProductId());
 
         int available = response.getStockQuantity() == null ? 0 : response.getStockQuantity();
         if (available < request.getQuantity()) {
-            throw new RuntimeException(
-                    "Insufficient stock for \"" + response.getName() + "\". "
-                            + "Available: " + available + ", Requested: " + request.getQuantity());
+            throw new InsufficientStockException(response.getName(), available, request.getQuantity());
         }
 
         Cart cart = getCart(userId);

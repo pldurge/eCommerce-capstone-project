@@ -1,7 +1,9 @@
-package com.capstone.paymentservice.exception;
+package com.capstone.orderservice.exception;
 
-import com.stripe.exception.CardException;
-import com.stripe.exception.StripeException;
+import com.capstone.orderservice.exceptions.CartEmptyException;
+import com.capstone.orderservice.exceptions.InsufficientStockException;
+import com.capstone.orderservice.exceptions.OrderNotFoundException;
+import com.capstone.orderservice.exceptions.PaymentServiceException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,47 +18,39 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // ─── Payment Domain Exceptions ────────────────────────────────────────────
+    // ─── Domain Exceptions ────────────────────────────────────────────────────
 
-    @ExceptionHandler(PaymentNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handlePaymentNotFound(
-            PaymentNotFoundException ex, HttpServletRequest request) {
+    @ExceptionHandler(OrderNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleOrderNotFound(
+            OrderNotFoundException ex, HttpServletRequest request) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), request.getRequestURI());
     }
 
-    @ExceptionHandler(PaymentAlreadyProcessedException.class)
-    public ResponseEntity<ErrorResponse> handleAlreadyProcessed(
-            PaymentAlreadyProcessedException ex, HttpServletRequest request) {
-        return build(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI());
-    }
-
-    @ExceptionHandler(PaymentGatewayException.class)
-    public ResponseEntity<ErrorResponse> handlePaymentGateway(
-            PaymentGatewayException ex, HttpServletRequest request) {
+    @ExceptionHandler(CartEmptyException.class)
+    public ResponseEntity<ErrorResponse> handleCartEmpty(
+            CartEmptyException ex, HttpServletRequest request) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI());
     }
 
-    @ExceptionHandler(OrderServiceException.class)
-    public ResponseEntity<ErrorResponse> handleOrderService(
-            OrderServiceException ex, HttpServletRequest request) {
+    @ExceptionHandler(InsufficientStockException.class)
+    public ResponseEntity<ErrorResponse> handleInsufficientStock(
+            InsufficientStockException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(PaymentServiceException.class)
+    public ResponseEntity<ErrorResponse> handlePaymentService(
+            PaymentServiceException ex, HttpServletRequest request) {
         return build(HttpStatus.BAD_GATEWAY, ex.getMessage(), request.getRequestURI());
     }
 
-    // ─── Stripe Exceptions ────────────────────────────────────────────────────
-
-    @ExceptionHandler(CardException.class)
-    public ResponseEntity<ErrorResponse> handleCardDeclined(
-            CardException ex, HttpServletRequest request) {
-        // User-friendly card error message
-        return build(HttpStatus.PAYMENT_REQUIRED,
-                "Card declined: " + ex.getUserMessage(), request.getRequestURI());
-    }
-
-    @ExceptionHandler(StripeException.class)
-    public ResponseEntity<ErrorResponse> handleStripe(
-            StripeException ex, HttpServletRequest request) {
-        return build(HttpStatus.BAD_GATEWAY,
-                "Payment gateway error: " + ex.getMessage(), request.getRequestURI());
+    // Catches RuntimeExceptions from CartServiceClient / ProductCatalogClient (connection errors etc.)
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<ErrorResponse> handleRuntime(
+            RuntimeException ex, HttpServletRequest request) {
+        String msg = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
+        return build(HttpStatus.INTERNAL_SERVER_ERROR,
+                "Service error: " + msg, request.getRequestURI());
     }
 
     // ─── Security ─────────────────────────────────────────────────────────────
@@ -87,18 +81,12 @@ public class GlobalExceptionHandler {
 
     // ─── Fallback ─────────────────────────────────────────────────────────────
 
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<ErrorResponse> handleRuntimeException(
-            RuntimeException ex, HttpServletRequest request) {
-        return build(HttpStatus.INTERNAL_SERVER_ERROR,
-                "An error occurred: " + ex.getMessage(), request.getRequestURI());
-    }
-
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(
             Exception ex, HttpServletRequest request) {
+        String msg = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
         return build(HttpStatus.INTERNAL_SERVER_ERROR,
-                "An unexpected error occurred.", request.getRequestURI());
+                "An unexpected error occurred: " + msg, request.getRequestURI());
     }
 
     // ─── Helper ───────────────────────────────────────────────────────────────
@@ -118,4 +106,3 @@ public class GlobalExceptionHandler {
             LocalDateTime timestamp,
             String path) {}
 }
-

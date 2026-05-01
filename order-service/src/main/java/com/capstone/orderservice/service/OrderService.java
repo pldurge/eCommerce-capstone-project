@@ -1,10 +1,13 @@
 package com.capstone.orderservice.service;
 
 import com.capstone.orderservice.client.CartServiceClient;
+import com.capstone.orderservice.client.PaymentServiceClient;
 import com.capstone.orderservice.client.ProductCatalogClient;
-import com.capstone.orderservice.dto.CartItemResponse;
-import com.capstone.orderservice.dto.CartResponse;
-import com.capstone.orderservice.dto.ProductResponse;
+import com.capstone.orderservice.dto.*;
+import com.capstone.orderservice.exceptions.CartEmptyException;
+import com.capstone.orderservice.exceptions.InsufficientStockException;
+import com.capstone.orderservice.exceptions.OrderNotFoundException;
+import com.capstone.orderservice.exceptions.PaymentServiceException;
 import com.capstone.orderservice.model.Order;
 import com.capstone.orderservice.model.OrderItem;
 import com.capstone.orderservice.repository.OrderRepository;
@@ -36,6 +39,7 @@ public class OrderService {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final CartServiceClient cartServiceClient;
     private final ProductCatalogClient productCatalogClient;
+    private final PaymentServiceClient paymentServiceClient;
 
     /*
      * Create an order directly from the user's cart.
@@ -44,38 +48,39 @@ public class OrderService {
      */
 
     @Transactional
-    public Order createOrder(String userId, Order.ShippingAddress address) {
+    public CreateOrderResponse createOrder(String userId, Order.ShippingAddress address) {
 
-        // Get Cart
+        // 1. Get Cart
         CartResponse cart = cartServiceClient.getCart(userId);
         if (cart == null || cart.getItems() == null || cart.getItems().isEmpty()) {
-            throw new RuntimeException("Cart is empty. Add items before placing an order.");
+            throw new CartEmptyException();
         }
 
-        // Validate Stock for every item
+        // 2. Validate stock for every item
         for (CartItemResponse cartItem : cart.getItems()) {
-            ProductResponse product =
-                    productCatalogClient.getProduct(cartItem.getProductId());
+            ProductResponse product = productCatalogClient.getProduct(cartItem.getProductId());
 
             if (product == null) {
-                throw new RuntimeException("Product not found: " + cartItem.getProductId());
+                throw new InsufficientStockException(
+                        "Product not found: " + cartItem.getProductId());
             }
             if (product.getStockQuantity() == null || product.getStockQuantity() < cartItem.getQuantity()) {
-                throw new RuntimeException(
-                        "Insufficient stock for \"" + cartItem.getProductName()
-                                + "\". Available: " + (product.getStockQuantity() == null ? 0 : product.getStockQuantity())
-                                + ", Requested: " + cartItem.getQuantity());
+                throw new InsufficientStockException(
+                        cartItem.getProductName(),
+                        product.getStockQuantity() == null ? 0 : product.getStockQuantity(),
+                        cartItem.getQuantity());
             }
         }
 
-        List<OrderItem> items = cart.getItems().stream()
+        // 3. Map cart items → order items (use ArrayList — JPA cascade requires a mutable list)
+        List<OrderItem> items = new java.util.ArrayList<>(cart.getItems().stream()
                 .map(ci -> OrderItem.builder()
                         .productId(ci.getProductId())
                         .productName(ci.getProductName())
                         .quantity(ci.getQuantity())
-                        .unitPrice(ci.getPrice())
+                        .unitPrice(ci.getPrice() != null ? ci.getPrice() : BigDecimal.ZERO)
                         .build())
-                .toList();
+                .toList());
 
         // 4. Calculate total
         BigDecimal total = items.stream()
@@ -89,10 +94,10 @@ public class OrderService {
                 .shippingAddress(address)
                 .totalAmount(total)
                 .status(Order.OrderStatus.PAYMENT_PENDING)
+                .paymentMethod(Order.PaymentMethod.PENDING)
                 .build();
 
         order = orderRepository.save(order);
-
         for (OrderItem item : items) {
             item.setOrder(order);
         }
@@ -102,13 +107,12 @@ public class OrderService {
         // 6. Clear cart now that order is placed
         cartServiceClient.clearCart(userId);
 
-        // 7. Publish order-created → payment-service creates PENDING transaction
-        //    and product-catalog-service reduces stock
-        List<Map<String, Object>> itemPayload = items.stream()
+        // 7. Publish order-created → product-catalog-service (stock) + notification-service (email)
+        List<Map<String, Object>> itemPayload = new java.util.ArrayList<>(items.stream()
                 .map(i -> Map.<String, Object>of(
                         "productId", i.getProductId().toString(),
                         "quantity",  i.getQuantity()))
-                .toList();
+                .toList());
 
         kafkaTemplate.send(ORDER_CREATED_TOPIC, order.getId().toString(),
                 Map.of("orderId",      order.getId(),
@@ -118,82 +122,97 @@ public class OrderService {
                         "items",        itemPayload));
 
         log.info("Order {} created for userId={}, total={}", order.getOrderNumber(), userId, total);
-        return order;
+
+        try {
+            PaymentServiceClient.CheckoutResult checkout =
+                    paymentServiceClient.initiatePayment(order.getId().toString(), total, userId);
+
+            return CreateOrderResponse.of(order, checkout.checkoutUrl(), checkout.sessionId());
+
+        } catch (PaymentServiceException ex) {
+            log.warn("Order {} created but payment session failed: {}", order.getOrderNumber(), ex.getMessage());
+            return CreateOrderResponse.withoutPaymentUrl(order, ex.getMessage());
+        }
     }
 
-    public Order getOrder(UUID id) {
+    public Order getOrder(String id) {
         return orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order not found: " + id));
+                .orElseThrow(() -> new OrderNotFoundException(id));
     }
 
-    public Order getOrderByNumber(String orderNumber) {
-        return orderRepository.findByOrderNumber(orderNumber)
-                .orElseThrow(() -> new RuntimeException("Order not found: " + orderNumber));
+    public OrderDto getOrderDto(String id) {
+        return OrderDto.from(getOrder(id));
     }
 
-    public Page<Order> getUserOrders(String userId, Pageable pageable) {
-        return orderRepository.findByUserId(userId, pageable);
+    public Page<OrderDto> getUserOrders(String userId, Pageable pageable) {
+        return orderRepository.findByUserId(userId, pageable)
+                .map(OrderDto::from);
     }
 
-    public Page<Order> getAllOrders(Pageable pageable) {
-        return orderRepository.findAll(pageable);
+    public Page<OrderDto> getAllOrders(Pageable pageable) {
+        return orderRepository.findAll(pageable)
+                .map(OrderDto::from);
     }
 
     @Transactional
-    public Order updateOrderStatus(UUID orderId, Order.OrderStatus newStatus) {
+    public OrderDto updateOrderStatus(String orderId, Order.OrderStatus newStatus) {
         Order order = getOrder(orderId);
         order.setStatus(newStatus);
         order = orderRepository.save(order);
 
-        kafkaTemplate.send(ORDER_UPDATED_TOPIC, orderId.toString(),
+        kafkaTemplate.send(ORDER_UPDATED_TOPIC, orderId,
                 Map.of("orderId",     orderId,
                         "orderNumber", order.getOrderNumber(),
                         "userId",      order.getUserId(),
                         "newStatus",   newStatus.name()));
 
         log.info("Order {} status → {}", order.getOrderNumber(), newStatus);
-        return order;
+        return OrderDto.from(order);
     }
 
     // Kafka: payment-confirmed → mark order PAYMENT_CONFIRMED + store paymentId
     @KafkaListener(topics = "payment-confirmed", groupId = "order-service-group")
     public void handlePaymentConfirmed(Map<String, Object> event) {
         try {
-            UUID   orderId   = UUID.fromString(event.get("orderId").toString());
+            String   orderId   = event.get("orderId").toString();
             String paymentId = event.get("paymentId").toString();
 
             Order order = getOrder(orderId);
             order.setPaymentId(paymentId);
             order.setStatus(Order.OrderStatus.PAYMENT_CONFIRMED);
+            order.setPaymentMethod(Order.PaymentMethod.STRIPE);
             orderRepository.save(order);
-            log.info("Payment confirmed for order: {}", orderId);
+            log.info("Payment confirmed (Stripe) for order: {}", orderId);
         } catch (Exception e) {
-            log.error("Error processing payment-confirmed event", e);
+            log.error("Error processing payment-confirmed event: {}", e.getMessage());
         }
     }
 
-    // Kafka: payment-failed → cancel order
+    // Kafka: payment-failed → switch order to COD (cash on delivery)
     @KafkaListener(topics = "payment-failed", groupId = "order-service-group")
     public void handlePaymentFailed(Map<String, Object> event) {
         try {
-            UUID orderId = UUID.fromString(event.get("orderId").toString());
-            updateOrderStatus(orderId, Order.OrderStatus.CANCELLED);
-            log.info("Order {} cancelled due to payment failure", orderId);
+            String orderId = event.get("orderId").toString();
+
+            Order order = getOrder(orderId);
+            order.setStatus(Order.OrderStatus.PAYMENT_PENDING);
+            order.setPaymentMethod(Order.PaymentMethod.COD);
+            orderRepository.save(order);
+
+            kafkaTemplate.send(ORDER_UPDATED_TOPIC, orderId,
+                    Map.of("orderId",     orderId,
+                            "orderNumber", order.getOrderNumber(),
+                            "userId",      order.getUserId(),
+                            "newStatus",   "PAYMENT_PENDING",
+                            "paymentMethod", "COD"));
+
+            log.info("Order {} switched to COD after Stripe payment failure", orderId);
         } catch (Exception e) {
-            log.error("Error processing payment-failed event", e);
+            log.error("Error processing payment-failed event: {}", e.getMessage());
         }
     }
 
-    /**
-     * Generates a human-readable order number: ORD-YYYYMMDD-XXXXX
-     * e.g. ORD-20250327-A3X7K
-     */
     private String generateOrderNumber() {
-        String date   = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String suffix = UUID.randomUUID().toString()
-                .replaceAll("-", "")
-                .substring(0, 5)
-                .toUpperCase();
-        return "ORD-" + date + "-" + suffix;
+        return "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     }
 }

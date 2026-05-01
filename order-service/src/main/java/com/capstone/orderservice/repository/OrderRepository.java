@@ -10,7 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface OrderRepository extends JpaRepository<Order, UUID> {
+public interface OrderRepository extends JpaRepository<Order, String> {
     Page<Order> findByUserId(String userId, Pageable pageable);
     Optional<Order> findByOrderNumber(String orderNumber);
     Optional<Order> findByPaymentId(String paymentId);

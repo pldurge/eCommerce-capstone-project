@@ -6,6 +6,7 @@ import com.capstone.productcatalog.dtos.ProductDto;
 import com.capstone.productcatalog.models.Product;
 import com.capstone.productcatalog.models.ProductDocument;
 import com.capstone.productcatalog.services.IProductService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -73,7 +74,7 @@ public class ProductController {
 
     @PostMapping("/api/products")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ProductDto> createProduct(@RequestBody ProductDto dto) {
+    public ResponseEntity<ProductDto> createProduct(@Valid @RequestBody ProductDto dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(productService.createProduct(dto));
     }
 
@@ -85,7 +86,7 @@ public class ProductController {
 
     @PutMapping("/api/products/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ProductDto> replaceProduct(@PathVariable UUID id, @RequestBody ProductDto dto) {
+    public ResponseEntity<ProductDto> replaceProduct(@PathVariable UUID id, @Valid @RequestBody ProductDto dto) {
         return ResponseEntity.ok(productService.replaceProduct(id, dto));
     }
 

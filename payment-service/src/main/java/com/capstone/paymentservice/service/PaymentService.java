@@ -1,7 +1,9 @@
 package com.capstone.paymentservice.service;
 
 import com.capstone.paymentservice.client.OrderServiceClient;
+import com.capstone.paymentservice.exception.PaymentAlreadyProcessedException;
 import com.capstone.paymentservice.exception.PaymentGatewayException;
+import com.capstone.paymentservice.exception.PaymentNotFoundException;
 import com.capstone.paymentservice.gateway.PaymentGatewayService;
 import com.capstone.paymentservice.model.PaymentTransaction;
 import com.capstone.paymentservice.repository.PaymentTransactionRepository;
@@ -77,24 +79,16 @@ public class PaymentService {
                 userId, PaymentTransaction.PaymentStatus.PENDING);
     }
 
-    // ─── Create Stripe Checkout Session ──────────────────────────────────────
-    /**
-     * Given an orderId, looks up the PENDING transaction and returns
-     * a Stripe-hosted checkout URL. The user is redirected to Stripe to pay.
-     * On success, Stripe calls back to /api/payments/stripe/callback?session_id=...
-     */
     @Transactional
     public CheckoutResponse initiateCheckout(String orderId) {
         PaymentTransaction tx = transactionRepository.findByOrderId(orderId)
-                .orElseThrow(() -> new RuntimeException(
+                .orElseThrow(() -> new PaymentNotFoundException(
                         "No payment transaction found for orderId: " + orderId));
 
         if (tx.getStatus() != PaymentTransaction.PaymentStatus.PENDING) {
-            throw new RuntimeException(
-                    "Payment for order " + orderId + " is already " + tx.getStatus());
+            throw new PaymentAlreadyProcessedException(orderId, tx.getStatus().name());
         }
 
-        // Create session — idempotent (same orderId returns same session from Stripe)
         PaymentGatewayService.CheckoutResult result =
                 paymentGatewayService.createCheckoutSession(
                         tx.getAmount(), orderId, stripeSuccessUrl, stripeCancelUrl);
@@ -103,6 +97,43 @@ public class PaymentService {
         transactionRepository.save(tx);
 
         log.info("Stripe Checkout Session {} created for orderId={}", result.sessionId(), orderId);
+        return new CheckoutResponse(result.sessionId(), result.checkoutUrl(),
+                tx.getPaymentId(), orderId, tx.getAmount());
+    }
+
+    /**
+     * Internal: called by order-service immediately after order creation.
+     * Creates the PENDING transaction (idempotent) AND the Stripe checkout session
+     * in one atomic step so the caller gets the payment URL right away.
+     */
+    @Transactional
+    public CheckoutResponse initiatePaymentInternal(String orderId, BigDecimal amount, String userId) {
+        // Idempotency — reuse existing transaction if already created (e.g. via kafka)
+        PaymentTransaction tx = transactionRepository.findByOrderId(orderId)
+                .orElseGet(() -> {
+                    PaymentTransaction newTx = PaymentTransaction.builder()
+                            .paymentId(UUID.randomUUID().toString())
+                            .orderId(orderId)
+                            .userId(userId)
+                            .amount(amount)
+                            .currency("INR")
+                            .status(PaymentTransaction.PaymentStatus.PENDING)
+                            .build();
+                    return transactionRepository.save(newTx);
+                });
+
+        if (tx.getStatus() != PaymentTransaction.PaymentStatus.PENDING) {
+            throw new PaymentAlreadyProcessedException(orderId, tx.getStatus().name());
+        }
+
+        PaymentGatewayService.CheckoutResult result =
+                paymentGatewayService.createCheckoutSession(
+                        tx.getAmount(), orderId, stripeSuccessUrl, stripeCancelUrl);
+
+        tx.setSessionId(result.sessionId());
+        transactionRepository.save(tx);
+
+        log.info("Stripe session {} created internally for orderId={}", result.sessionId(), orderId);
         return new CheckoutResponse(result.sessionId(), result.checkoutUrl(),
                 tx.getPaymentId(), orderId, tx.getAmount());
     }
@@ -116,10 +147,9 @@ public class PaymentService {
     @Transactional
     public PaymentTransaction handleStripeCallback(String stripeSessionId) {
         PaymentTransaction tx = transactionRepository.findBySessionId(stripeSessionId)
-                .orElseThrow(() -> new RuntimeException(
+                .orElseThrow(() -> new PaymentNotFoundException(
                         "No transaction found for Stripe session: " + stripeSessionId));
 
-        // Guard against duplicate callbacks
         if (tx.getStatus() == PaymentTransaction.PaymentStatus.SUCCESS) {
             log.warn("Duplicate Stripe callback for session {} — already SUCCESS", stripeSessionId);
             return tx;
@@ -183,13 +213,14 @@ public class PaymentService {
         return tx;
     }
 
-    // ─── Refund ───────────────────────────────────────────────────────────────
     @Transactional
     public PaymentTransaction refundPayment(String paymentId) {
         PaymentTransaction tx = getTransactionByPaymentId(paymentId);
 
-        if (tx.getStatus() != PaymentTransaction.PaymentStatus.SUCCESS)
-            throw new RuntimeException("Only successful payments can be refunded");
+        if (tx.getStatus() != PaymentTransaction.PaymentStatus.SUCCESS) {
+            throw new PaymentGatewayException(
+                    "Only successful payments can be refunded. Current status: " + tx.getStatus());
+        }
 
         String refundId = paymentGatewayService.refund(
                 tx.getGatewayTransactionId(), tx.getAmount());
@@ -208,10 +239,9 @@ public class PaymentService {
         return tx;
     }
 
-    // ─── Queries ──────────────────────────────────────────────────────────────
     public PaymentTransaction getTransactionByPaymentId(String paymentId) {
         return transactionRepository.findByPaymentId(paymentId)
-                .orElseThrow(() -> new RuntimeException("Transaction not found: " + paymentId));
+                .orElseThrow(() -> new PaymentNotFoundException(paymentId));
     }
 
     public List<PaymentTransaction> getUserTransactions(String userId) {

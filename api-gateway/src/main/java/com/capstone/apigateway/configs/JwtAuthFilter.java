@@ -36,7 +36,7 @@ public class JwtAuthFilter extends AbstractGatewayFilterFactory<JwtAuthFilter.Co
             String token = authHeader.substring(7);
 
             if (!utils.isTokenValid(token)) {
-                return unauthorized(exchange, "Token Invalid or Expired");
+                return unauthorized(exchange, "Token Invalid or Expired : Please Log in Again");
             }
 
             // Check Redis blacklist — rejects tokens invalidated by logout

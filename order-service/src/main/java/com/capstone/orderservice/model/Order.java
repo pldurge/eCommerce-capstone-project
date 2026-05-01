@@ -34,10 +34,20 @@ public class Order extends BaseModel{
     @Builder.Default
     private OrderStatus status = OrderStatus.PENDING;
 
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private PaymentMethod paymentMethod = PaymentMethod.PENDING;
+
     private String paymentId;
 
     public enum OrderStatus {
         PENDING, PAYMENT_PENDING, PAYMENT_CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED, REFUNDED
+    }
+
+    public enum PaymentMethod {
+        PENDING,   // not yet determined
+        STRIPE,    // paid online via Stripe
+        COD        // cash on delivery (chosen when Stripe payment failed/cancelled)
     }
 
     @Embeddable

@@ -1,5 +1,7 @@
 package com.capstone.orderservice.controller;
 
+import com.capstone.orderservice.dto.CreateOrderResponse;
+import com.capstone.orderservice.dto.OrderDto;
 import com.capstone.orderservice.model.Order;
 import com.capstone.orderservice.service.OrderService;
 import lombok.RequiredArgsConstructor;
@@ -19,13 +21,9 @@ public class OrderController {
 
     private final OrderService orderService;
 
-    /**
-     * Place an order. Pass only the shipping address — items are fetched
-     * automatically from the user's cart.
-     */
     @PostMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Order> createOrder(
+    public ResponseEntity<CreateOrderResponse> createOrder(
             @RequestHeader("X-User-Name") String userId,
             @RequestBody Order.ShippingAddress shippingAddress) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -35,13 +33,13 @@ public class OrderController {
     /** CUSTOMER sees own orders; ADMIN sees all. */
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Page<Order>> getOrders(
+    public ResponseEntity<Page<OrderDto>> getOrders(
             @RequestHeader("X-User-Name") String userId,
             @RequestHeader("X-User-Role")  String role,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "10") int size) {
 
-        Page<Order> orders = role.equals("ROLE_ADMIN")
+        Page<OrderDto> orders = role.equals("ROLE_ADMIN")
                 ? orderService.getAllOrders(PageRequest.of(page, size))
                 : orderService.getUserOrders(userId, PageRequest.of(page, size));
 
@@ -50,21 +48,15 @@ public class OrderController {
 
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or @orderSecurity.isOwner(#id, authentication.name)")
-    public ResponseEntity<Order> getOrder(@PathVariable UUID id) {
-        return ResponseEntity.ok(orderService.getOrder(id));
-    }
-
-    @GetMapping("/number/{orderNumber}")
-    @PreAuthorize("hasRole('ADMIN') or @orderSecurity.isOwnerByNumber(#orderNumber, authentication.name)")
-    public ResponseEntity<Order> getOrderByNumber(@PathVariable String orderNumber) {
-        return ResponseEntity.ok(orderService.getOrderByNumber(orderNumber));
+    public ResponseEntity<OrderDto> getOrder(@PathVariable String id) {
+        return ResponseEntity.ok(orderService.getOrderDto(id));
     }
 
     /** Admin: update order status via API (e.g. mark SHIPPED, DELIVERED). */
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Order> updateOrderStatus(
-            @PathVariable UUID id,
+    public ResponseEntity<OrderDto> updateOrderStatus(
+            @PathVariable String id,
             @RequestParam Order.OrderStatus status) {
         return ResponseEntity.ok(orderService.updateOrderStatus(id, status));
     }
@@ -74,8 +66,8 @@ public class OrderController {
      * Not exposed via the API Gateway (no route defined for /api/orders/internal/**).
      */
     @PatchMapping("/internal/{orderId}/status")
-    public ResponseEntity<Order> updateOrderStatusInternal(
-            @PathVariable UUID orderId,
+    public ResponseEntity<OrderDto> updateOrderStatusInternal(
+            @PathVariable String orderId,
             @RequestParam Order.OrderStatus status) {
         return ResponseEntity.ok(orderService.updateOrderStatus(orderId, status));
     }

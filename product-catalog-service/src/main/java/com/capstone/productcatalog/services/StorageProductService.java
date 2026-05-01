@@ -62,7 +62,23 @@ public class StorageProductService implements IProductService{
     @Override
     @Transactional
     public ProductDto createProduct(ProductDto dto) {
-        Product product = productRepository.save(dto.toProduct());
+        if (dto.getName() == null || dto.getName().isBlank())
+            throw new IllegalArgumentException("Product name is required");
+        if (dto.getPrice() == null || dto.getPrice().compareTo(java.math.BigDecimal.ZERO) <= 0)
+            throw new IllegalArgumentException("Product price must be greater than zero");
+        if (dto.getStockQuantity() == null || dto.getStockQuantity() < 0)
+            throw new IllegalArgumentException("Stock quantity must be zero or greater");
+        if (dto.getCategory() == null || dto.getCategory().getId() == null)
+            throw new IllegalArgumentException("A valid category is required (send category.id)");
+
+        Category category = categoryRepository.findById(dto.getCategory().getId())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Category not found with id: " + dto.getCategory().getId()));
+
+        Product product = dto.toProduct();
+        product.setCategory(category);
+        product.setState(State.ACTIVE);
+        product = productRepository.save(product);
         indexProduct(product);
         return product.toDto();
     }

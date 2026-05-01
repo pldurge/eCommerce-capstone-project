@@ -1,10 +1,12 @@
 package com.capstone.paymentservice.controller;
 
+import com.capstone.paymentservice.dto.InitiatePaymentRequest;
 import com.capstone.paymentservice.model.PaymentTransaction;
 import com.capstone.paymentservice.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -76,5 +78,18 @@ public class PaymentController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PaymentTransaction> refundPayment(@PathVariable String paymentId) {
         return ResponseEntity.ok(paymentService.refundPayment(paymentId));
+    }
+
+    /**
+     * Internal endpoint — called by order-service immediately after order creation.
+     * Atomically creates the PENDING transaction and Stripe Checkout session.
+     * Returns the checkout URL so the order-service can include it in its response.
+     * NOT exposed via the API Gateway.
+     */
+    @PostMapping("/internal/initiate")
+    public ResponseEntity<PaymentService.CheckoutResponse> initiateInternal(
+            @Validated @RequestBody InitiatePaymentRequest request) {
+        return ResponseEntity.ok(paymentService.initiatePaymentInternal(
+                request.orderId(), request.amount(), request.userId()));
     }
 }

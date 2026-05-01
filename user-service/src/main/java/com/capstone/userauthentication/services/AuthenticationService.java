@@ -43,7 +43,8 @@ public class AuthenticationService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new UserAlreadyExistsException("Email already in use: " + request.getEmail());
+            throw new UserAlreadyExistsException("Email already in use: " + request.getEmail() + " Please try to " +
+                    "Login");
         }
         User user = User.builder()
                 .email(request.getEmail())

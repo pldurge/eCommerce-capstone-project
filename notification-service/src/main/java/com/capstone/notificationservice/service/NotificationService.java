@@ -27,6 +27,9 @@ public class NotificationService {
     @Value("${app.notification.from-name}")
     private String fromName;
 
+    @Value("${spring.mail.username:#{null}}")
+    private String smtpUsername;
+
     // ─── Kafka Listeners ─────────────────────────────────────────────────────
     @KafkaListener(topics = "order-created", groupId = "notification-service-group")
     public void handleOrderCreated(Map<String, Object> map) {
@@ -221,8 +224,15 @@ public class NotificationService {
 
     private void sendEmail(String to, String subject, String text) {
         try {
+            // Gmail SMTP requires the "from" to match the authenticated account.
+            // Use the SMTP username as the sender address
+            // so authentication never fails, while still showing the friendly display name.
+            String effectiveFrom = (smtpUsername != null && !smtpUsername.isBlank())
+                    ? smtpUsername
+                    : fromEmail;
+
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromName + " <" + fromEmail + ">");
+            message.setFrom(fromName + " <" + effectiveFrom + ">");
             message.setTo(to);
             message.setSubject(subject);
             message.setText(text);
